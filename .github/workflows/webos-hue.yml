@@ -86,29 +86,18 @@ jobs:
             -DENABLE_FRAMEBUFFER=OFF -DENABLE_POWER_MANAGEMENT=OFF \
             -DUSE_EMBEDDED_WEB_RESOURCES=ON
           cmake --build build/tv --parallel 3
+      - name: Check out the packaging script
+        uses: actions/checkout@v4
+        with:
+          path: packaging
+          persist-credentials: false
       - name: Package the ARM executable with the matching release loader
         run: |
           stock="${APP_ID}_22.0.1_all.ipk"
           curl -fsSL --retry 3 "https://github.com/webosbrew/hyperhdr-webos-loader/releases/download/v22.0.1/$stock" -o "$stock"
           echo "1341e25c1ebb6eeea172485dc885acb44c93d79bc5ac5ce698ed721664671f08  $stock" | sha256sum -c -
-          ar x "$stock"
-          mkdir control data dist
-          tar xzf control.tar.gz -C control
-          tar xzf data.tar.gz -C data
-          executable=data/usr/palm/services/$APP_ID.service/hyperhdr/hyperhdr
-          install -m 755 hyperhdr/build/tv/bin/hyperhdr "$executable"
-          readelf -h "$executable" | grep -E 'Machine:.*ARM$'
-          grep -aFq zoneBrightnessBalance "$executable"
-          for metadata in "applications/$APP_ID/appinfo" "packages/$APP_ID/packageinfo"; do
-            file="data/usr/palm/$metadata.json"
-            jq --arg version "$TEST_VERSION" '.version = $version' "$file" > updated.json
-            cat updated.json > "$file"
-          done
-          size=$(find data -type f -printf '%s\n' | awk '{ total += $1 } END { printf "%.0f", total }')
-          sed -i -e "s/^Version:.*/Version: $TEST_VERSION/" -e "s/^Installed-Size:.*/Installed-Size: $size/" control/control
-          tar --owner=0 --group=0 -czf control.tar.gz -C control control
-          tar --owner=0 --group=0 -czf data.tar.gz -C data usr
-          ar rcsD "dist/${APP_ID}_${TEST_VERSION}_all.ipk" debian-binary control.tar.gz data.tar.gz
+          mkdir -p dist
+          python3 packaging/package_ipk.py "$stock" hyperhdr/build/tv/bin/hyperhdr "$TEST_VERSION" "dist/${APP_ID}_${TEST_VERSION}_all.ipk"
           cd dist
           sha256sum *.ipk > SHA256SUMS
       - name: Upload installer
