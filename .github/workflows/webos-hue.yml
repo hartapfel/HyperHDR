@@ -1,0 +1,119 @@
+name: webOS Hue test package
+on:
+  push:
+    branches: [webos-hue-package]
+permissions:
+  contents: read
+
+env:
+  HUE_REV: a43de136bfa01f3ab54ec802ab632d33f26bf8cf
+  SDK_REV: a38c582ea397fec612811f8e933ae982d41fc5a3
+  SDK: /opt/arm-webos-linux-gnueabi_sdk-buildroot
+  APP_ID: org.webosbrew.hyperhdr.loader
+  TEST_VERSION: 22.0.2
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Restore the Qt 6 webOS SDK
+        id: sdk-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: sdk.tar.gz
+          key: webos-qt6-${{ env.SDK_REV }}-v1
+      - name: Check out the loader's pinned Buildroot
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: openlgtv/buildroot-nc4
+          ref: ${{ env.SDK_REV }}
+          path: buildroot
+          persist-credentials: false
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y cpio rsync bc flatbuffers-compiler
+      - name: Build the same Qt 6 SDK as webosbrew loader v22.0.1
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        working-directory: buildroot
+        run: |
+          make webos_tv_defconfig
+          cat >> .config <<'CONFIG'
+          BR2_PACKAGE_QT5=n
+          BR2_PACKAGE_QT6=y
+          BR2_PACKAGE_QT6BASE_NETWORK=y
+          BR2_PACKAGE_QT6SERIALPORT=y
+          BR2_PACKAGE_ICU=n
+          CONFIG
+          patches=https://gist.githubusercontent.com/sundermann/eec535ef79adb87367a6030f713d5e27/raw/20b9add1b41e0c0c55dd11aaeff41160eebe9693
+          for patch in em_aarch64 statvfs; do
+            curl -fsSL --retry 3 "$patches/$patch.patch" -o "package/qt6/qt6base/$patch.patch"
+          done
+          make olddefconfig
+          make sdk
+          mv output/images/*_sdk-buildroot*.tar.gz ../sdk.tar.gz
+      - name: Cache SDK for later builds
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: sdk.tar.gz
+          key: ${{ steps.sdk-cache.outputs.cache-primary-key }}
+      - name: Prepare SDK
+        run: |
+          tar xzf sdk.tar.gz -C /opt
+          "$SDK/relocate-sdk.sh"
+          find "$SDK/bin" -type f -iname 'perl*' -delete
+      - name: Check out the Hue branch revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HUE_REV }}
+          path: hyperhdr
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test zone balancing and cross-compile HyperHDR
+        working-directory: hyperhdr
+        run: |
+          cmake -S tests/hue_zone_brightness -B build/test -G Ninja
+          cmake --build build/test
+          ctest --test-dir build/test --output-on-failure
+          cmake -S . -B build/tv -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$SDK/share/buildroot/toolchainfile.cmake" \
+            -DPLATFORM=linux -DENABLE_SPI_FTDI=ON -DENABLE_SPIDEV=ON \
+            -DENABLE_V4L2=OFF -DENABLE_X11=OFF -DENABLE_PIPEWIRE=OFF \
+            -DENABLE_SOUNDCAPLINUX=OFF -DENABLE_CEC=OFF -DENABLE_PROTOBUF=OFF \
+            -DENABLE_FRAMEBUFFER=OFF -DENABLE_POWER_MANAGEMENT=OFF \
+            -DUSE_EMBEDDED_WEB_RESOURCES=ON
+          cmake --build build/tv --parallel 3
+      - name: Package the ARM executable with the matching release loader
+        run: |
+          stock="${APP_ID}_22.0.1_all.ipk"
+          curl -fsSL --retry 3 "https://github.com/webosbrew/hyperhdr-webos-loader/releases/download/v22.0.1/$stock" -o "$stock"
+          echo "1341e25c1ebb6eeea172485dc885acb44c93d79bc5ac5ce698ed721664671f08  $stock" | sha256sum -c -
+          ar x "$stock"
+          mkdir control data dist
+          tar xzf control.tar.gz -C control
+          tar xzf data.tar.gz -C data
+          executable=data/usr/palm/services/$APP_ID.service/hyperhdr/hyperhdr
+          install -m 755 hyperhdr/build/tv/bin/hyperhdr "$executable"
+          readelf -h "$executable" | grep -E 'Machine:.*ARM$'
+          grep -aFq zoneBrightnessBalance "$executable"
+          for metadata in "applications/$APP_ID/appinfo" "packages/$APP_ID/packageinfo"; do
+            file="data/usr/palm/$metadata.json"
+            jq --arg version "$TEST_VERSION" '.version = $version' "$file" > updated.json
+            cat updated.json > "$file"
+          done
+          size=$(find data -type f -printf '%s\n' | awk '{ total += $1 } END { printf "%.0f", total }')
+          sed -i -e "s/^Version:.*/Version: $TEST_VERSION/" -e "s/^Installed-Size:.*/Installed-Size: $size/" control/control
+          tar --owner=0 --group=0 -czf control.tar.gz -C control control
+          tar --owner=0 --group=0 -czf data.tar.gz -C data usr
+          ar rcsD "dist/${APP_ID}_${TEST_VERSION}_all.ipk" debian-binary control.tar.gz data.tar.gz
+          cd dist
+          sha256sum *.ipk > SHA256SUMS
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperhdr-webos-hue-${{ env.TEST_VERSION }}
+          path: dist/
+          if-no-files-found: error
