@@ -220,12 +220,13 @@ private:
 		const ColorContainer& colors,
 		Converter convert);
 
-	static ColorXYB nonLinearRgbToColorXYB(bool convertToLinearRgb, const linalg::vec<float, 3>& nonlinear);
+	ColorXYB nonLinearRgbToColorXYB(const linalg::vec<float, 3>& nonlinear) const;
 
 	std::vector<uint8_t> prepareStreamData();
 	std::vector<uint8_t> prepareStreamDataV2();
 
 	bool _convertToLinearRgb;
+	bool _screenColorimetry = false;
 	bool _switchOffOnBlack;
 	float _brightnessFactor;
 	float _zoneBrightnessBalance = 0.f;

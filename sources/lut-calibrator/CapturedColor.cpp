@@ -30,7 +30,7 @@
 #include <lut-calibrator/BoardUtils.h>
 
 
-void CapturedColor::importColors(const CapturedColor& colorImported)
+bool CapturedColor::importColors(const CapturedColor& colorImported)
 {
 	for (auto iter = colorImported.inputColors.begin(); iter != colorImported.inputColors.end(); ++iter)
 	{
@@ -39,7 +39,7 @@ void CapturedColor::importColors(const CapturedColor& colorImported)
 			addColor((*iter).first);
 		}
 	}
-	calculateFinalColor();
+	return calculateFinalColor();
 }
 
 bool CapturedColor::calculateFinalColor()

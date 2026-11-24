@@ -15,6 +15,9 @@
 		"tan" : {
 			"type" : "integer"
 		},
+		"piccap_hdr": {
+			"type": "boolean"
+		},
 		"debug": {
 			"type" : "boolean",
 			"required" : false

@@ -6,12 +6,10 @@ var hueIPs = [];
 var hueIPsinc = 0;
 var lightIDs = null;
 var groupIDs = null;
-var lightLocation = [];
+var bridgeZones = {};
 var groupLights = [];
 // CHannels for v2 api
 var channels = {};
-var entertainmentResources = null;
-var deviceResources = null;
 var groupLightsLocations = [];
 var hueType = "philipshue";
 var useV2Api=false;
@@ -180,38 +178,63 @@ function checkHueBridge(cb, hueUser)
         });
 }
 
+// Hue's x and z axes describe screen width and height. The y axis is room depth.
+// Split rectangular scan regions at midpoints between neighboring channel positions.
+function hueScreenZones(locations)
+{
+    const zones = {};
+    const points = [];
+    for (const [id, position] of Object.entries(locations || {})) {
+        if (!Array.isArray(position) || !Number.isFinite(position[0]) || !Number.isFinite(position[2]))
+            continue;
+        const clamp = value => Math.max(0, Math.min(1, value));
+        points.push({id, h: clamp((1 + position[0]) / 2), v: clamp((1 - position[2]) / 2)});
+    }
+
+    function divide(points, bounds) {
+        let gap = 0, axis, lastLower, boundary;
+        for (const key of ['h', 'v']) {
+            const sorted = points.map(point => point[key]).sort((a, b) => a - b);
+            for (let i = 1; i < sorted.length; i++) {
+                const distance = sorted[i] - sorted[i - 1];
+                if (distance > gap) {
+                    gap = distance;
+                    axis = key;
+                    lastLower = sorted[i - 1];
+                    boundary = (sorted[i - 1] + sorted[i]) / 2;
+                }
+            }
+        }
+        if (!gap) {
+            // Channels sharing a projected position sample the same rectangle.
+            for (const point of points) zones[point.id] = {...bounds, group: 0};
+            return;
+        }
+        divide(points.filter(p => p[axis] <= lastLower), {...bounds, [axis + 'max']: boundary});
+        divide(points.filter(p => p[axis] > lastLower), {...bounds, [axis + 'min']: boundary});
+    }
+    divide(points, {hmin: 0, hmax: 1, vmin: 0, vmax: 1});
+    return zones;
+}
+
 function useGroupId(id)
 {
     if(useV2Api){
         $('#entertainmentConfigurationId').val(id);
         channels={};
+        groupLights = [];
+        groupLightsLocations = {};
         for (const channel of groupIDs[id].channels) {
             groupLights.push(channel.channel_id+"")
-            // Fetch the device IDs for this channel (used for identify)
-            channels[channel.channel_id+""]=channel;
-            for (var member of channel.members) {
-                var service = member.service;
-                if (service.rtype == "entertainment") {
-                    for (const entertainmentResource of entertainmentResources) {
-                        if(service.rid==entertainmentResource.id){
-                            if(entertainmentResource.owner?.rtype=="device"){
-                                if(channels[channel.channel_id+""].deviceIds){
-                                    channels[channel.channel_id+""].deviceIds.push(entertainmentResource.owner?.rid)
-                                }else{
-                                    channels[channel.channel_id+""].deviceIds=[entertainmentResource.owner?.rid]
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            groupLightsLocations[channel.channel_id+""] = [channel.position.x,channel.position.y,channel.position.z];
+            channels[channel.channel_id] = channel;
+            if (channel.position) groupLightsLocations[channel.channel_id] = [channel.position.x, channel.position.y, channel.position.z];
         }
     }else{
         $('#groupId').val(id);
         groupLights = groupIDs[id].lights;
         groupLightsLocations = groupIDs[id].locations;
     }
+    bridgeZones = hueScreenZones(groupLightsLocations);
     get_hue_lights();
 }
 
@@ -320,7 +343,7 @@ async function getProperties_hue_bridge(hostAddress, username, resourceFilter)
     }
 }
 
-function SaveHueConfig(saveLamps = true)
+function SaveHueConfig()
 {
     var hueLedConfig = [];
     var finalLightIds = [];
@@ -335,18 +358,15 @@ function SaveHueConfig(saveLamps = true)
         if ($('#hue_' + key).val() != "disabled")
         {
             finalLightIds.push(key);
-            var idx_content = assignLightPos(key, $('#hue_' + key).val(), lightIDs[key].name);
+            const position = $('#hue_' + key).val();
+            const idx_content = position === 'bridge' ? {...bridgeZones[key], name: lightIDs[key].name || ('Channel ' + key)}
+                : assignLightPos(key, position, lightIDs[key].name);
             hueLedConfig.push(JSON.parse(JSON.stringify(idx_content)));
         }
     }
 
     var sc = window.serverConfig;
 
-    if (!saveLamps && Array.isArray(sc.leds) && sc.leds.length ==  hueLedConfig.length)
-    {
-        hueLedConfig = sc.leds;
-    }
-    
     sc.leds = hueLedConfig;
 
     //Adjust gamma, brightness and compensation
@@ -375,6 +395,8 @@ function SaveHueConfig(saveLamps = true)
     d.onBlackTimeToPowerOff = parseInt(eV("onBlackTimeToPowerOff", 600));
     d.onBlackTimeToPowerOn = parseInt(eV("onBlackTimeToPowerOn", 300));
     d.brightnessFactor = parseFloat(eV("brightnessFactor", 1));
+    d.convertToLinearRgb = eV("convertToLinearRgb", false) == true;
+    d.screenColorimetry = eV("screenColorimetry", false) == true;
     d.zoneBrightnessBalance = parseInt(eV("zoneBrightnessBalance", 0), 10);
 
     d.clientkey = $('#clientkey').val();
@@ -589,13 +611,6 @@ function get_hue_groups()
             {
                 if (r != null)
                 {
-                    // Also get all entertainment resources and devices. this will be used later to identify a channel
-                    tunnel_hue_get($("#ip").val(), '/clip/v2/resource/entertainment',{'hue-application-key':$("#user").val() }).then(value => {
-                        entertainmentResources=value?.data;
-                    })
-                    tunnel_hue_get($("#ip").val(), '/clip/v2/resource/device',{'hue-application-key':$("#user").val() }).then(value => {
-                        deviceResources=value?.data;
-                    })
                     if (r.data.length>0)
                     {
                         $('#wh_topcontainer').toggle(false);
@@ -715,36 +730,13 @@ function get_hue_lights()
                 }
 
                 $('.lidsb').html("");
-                var pos = "";
                 for (var lightid in r)
                 {
-                    if (hueType == 'philipshueentertainment')
-                    {
-                        if (groupLights.indexOf(lightid) == -1) continue;
-
-                        if (groupLightsLocations.hasOwnProperty(lightid))
-                        {
-                            lightLocation = groupLightsLocations[lightid];
-                            var x = lightLocation[0];
-                            var y = lightLocation[1];
-                            var z = lightLocation[2];
-                            var xval = (x < 0) ? "left" : "right";
-                            if (z != 1 && x >= -0.25 && x <= 0.25) xval = "";
-                            switch (z)
-                            {
-                                case 1: // top / Ceiling height
-                                    pos = "top" + xval;
-                                    break;
-                                case 0: // middle / TV height
-                                    pos = (xval == "" && y >= 0.75) ? "bottom" : xval + "middle";
-                                    break;
-                                case -1: // bottom / Ground height
-                                    pos = xval + "bottom";
-                                    break;
-                            }
-                        }
-                    }
-                    var options = "";
+                    const entertainment = hueType == 'philipshueentertainment';
+                    if (entertainment && !groupLights.includes(lightid)) continue;
+                    const useBridge = entertainment && Object.prototype.hasOwnProperty.call(bridgeZones, lightid);
+                    const pos = useBridge ? 'bridge' : (entertainment ? 'entire' : 'disabled');
+                    let options = useBridge ? '<option value="bridge" selected>' + $.i18n('wiz_hue_bridge_position') + '</option>' : '';
                     for (var opt in lightOptions)
                     {
                         var val = lightOptions[opt];
@@ -758,6 +750,8 @@ function get_hue_lights()
                     let ipVal = encodeURI($("#ip").val());
                     let userVal = encodeURI($("#user").val());                  
                     let buttonLightLink = `<button class="btn btn-sm btn-primary" onClick=identify_hue_device("${ipVal}","${userVal}",${lightid})>***${$.i18n(useV2Api?'wiz_hue_identify':'wiz_hue_blinkblue', lightid)}</button>`;                 
+                    if (useV2Api && window.serverConfig.device.entertainmentConfigurationId !== $('#entertainmentConfigurationId').val())
+                        buttonLightLink = '';
                     $('.lidsb').append(createTableRowFlex([DOMPurify.sanitize(`${lightid} (${descLightVal})`), selectLightControl, buttonLightLink]));
                 }
 
@@ -780,10 +774,7 @@ function get_hue_lights()
                 }
                 $('.hue_sel_watch').trigger('change');
 
-                if (useV2Api)
-                {
-                    SaveHueConfig(false);
-                }
+
             }
             else
             {

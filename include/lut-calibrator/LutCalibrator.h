@@ -68,10 +68,10 @@ class LutCalibrator : public QObject
 	Q_OBJECT
 
 public:
-	LutCalibrator(QString rootpath, hyperhdr::Components defaultComp, bool debug, bool lchCorrection);
+	LutCalibrator(QString rootpath, hyperhdr::Components defaultComp, bool debug, bool lchCorrection, bool piccapHdr = false);
 	~LutCalibrator();
 	static void sendReport(const LoggerName& _log, QString report);
-	static QString CreateLutFile(const LoggerName& _log, QString _rootPath, BestResult* bestResult, std::vector<std::vector<std::vector<CapturedColor>>>* all);
+	static QString CreateLutFile(const LoggerName& _log, QString _rootPath, BestResult* bestResult, std::vector<std::vector<std::vector<CapturedColor>>>* all, const QString& outputFile = QStringLiteral("lut_lin_tables.3d"));
 	static void CreateDefaultLut(QString filepath);
 
 signals:
@@ -95,7 +95,7 @@ private:
 	void notifyCalibrationFinished();	
 	void error(QString message);
 	void handleImage(const Image<ColorRgb>& image);
-	void calibration();
+	bool calibration();
 	bool setTestData();
 	void capturedPrimariesCorrection(ColorSpaceMath::HDR_GAMMA gamma, double gammaHLG, double nits, int coef, linalg::mat<double, 3, 3>& convert_bt2020_to_XYZ, linalg::mat<double, 3, 3>& convert_XYZ_to_corrected, bool printDebug = false);	
 
@@ -105,6 +105,7 @@ private:
 	std::shared_ptr< BestResult> bestResult;
 	MemoryBuffer<uint8_t> _lut;
 	QString _rootPath;
+	QString _outputFile;
 	bool	_debug;
 	bool	_lchCorrection;
 	hyperhdr::Components _defaultComp;

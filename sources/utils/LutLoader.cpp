@@ -128,8 +128,7 @@ void LutLoader::loadLutFile(const LoggerName& _log, PixelFormat color, const QLi
 				}
 
 				file.close();
-
-				return;
+				if (_lutBufferInit) return;
 			}
 			else
 			{

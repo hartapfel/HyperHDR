@@ -73,7 +73,7 @@ public:
 	const uint8_t& U() const { return colorInt.y; }
 	const uint8_t& V() const { return colorInt.z; }
 
-	void importColors(const CapturedColor& colorImported);
+	bool importColors(const CapturedColor& colorImported);
 	bool calculateFinalColor();
 	bool hasAllSamples();
 	bool hasAnySample();

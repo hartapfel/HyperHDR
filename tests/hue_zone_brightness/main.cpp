@@ -1,4 +1,14 @@
 #include <led-drivers/net/HueZoneBrightness.h>
+#include <lut-calibrator/BoardSampling.h>
+
+// The reference board survives 4:2:0 capture only when every shared
+// chroma sample fits wholly inside a colored patch.
+static_assert(BoardUtils::fitsNv12CalibrationBoard(256, 144));
+static_assert(BoardUtils::fitsNv12CalibrationBoard(320, 180));
+static_assert(BoardUtils::fitsNv12CalibrationBoard(360, 180));
+static_assert(BoardUtils::fitsNv12CalibrationBoard(384, 216));
+static_assert(!BoardUtils::fitsNv12CalibrationBoard(192, 108));
+static_assert(!BoardUtils::fitsNv12CalibrationBoard(160, 90));
 
 #include <cmath>
 #include <iostream>

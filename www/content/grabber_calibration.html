@@ -23,7 +23,11 @@
 							</label>
 						</div>
 					</div>
-					<div class="card-footer" style="text-align: right;">
+					<div class="form-check mx-3 mb-3">
+                        <input class="form-check-input" type="checkbox" id="piccap_hdr" />
+                        <label class="form-check-label" for="piccap_hdr" data-i18n="calibration_piccap_hdr"></label>
+                    </div>
+                    <div class="card-footer" style="text-align: right;">
 						<button class="btn btn-primary" id="btn_select_calibration" data-i18n="general_btn_next">Next</button>
 					</div>
 				</div>
@@ -77,7 +81,7 @@
 		<button id="startCalibration" type="button" style="width: 320px;" class="btn btn-success"><svg data-src="svg/button_play.svg" fill="currentColor" class="svg4hyperhdr"></svg><span data-i18n="general_btn_start">Start</span></button>
 	</div>
 	<div class="d-flex justify-content-center pt-2 mb-4 mt-2">
-		<canvas width="1280px" height="720px" id="canvas">
+		<canvas width="1920" height="1080" id="canvas">
 		</canvas>
 	</div>
 <div>

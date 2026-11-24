@@ -26,6 +26,8 @@
 */
 
 #include <lut-calibrator/BoardUtils.h>
+#include <lut-calibrator/BoardSampling.h>
+#include <utils/PixelFormat.h>
 #include <infinite-color-engine/YuvConverter.h>
 #include <utils-image/utils-image.h>
 #include <iostream>
@@ -74,20 +76,31 @@ namespace BoardUtils
 		if (_color != nullptr)
 			color.setSourceRGB(*_color);
 
-		const double2 positionF{ position };
-		const double2 startF = positionF * delta;
-		const double2 endF = ((positionF + double2(1, 1)) * delta) - double2(1, 1);
-		const int2 middle{ (startF + endF) / 2 };
+		if (yuvImage.getOriginFormat() == PixelFormat::NV12 && (yuvImage.width() < 1280 || yuvImage.height() < 720))
+		{
+			const int left = chromaPairStart(yuvImage.width(), SCREEN_BLOCKS_X, position.x);
+			const int top = chromaPairStart(yuvImage.height(), SCREEN_BLOCKS_Y, position.y);
+			for (int y = top; y < top + 2; ++y)
+				for (int x = left; x < left + 2; ++x)
+					color.addColor(yuvImage(x, y));
+		}
+		else
+		{
+			const double2 positionF{ position };
+			const double2 startF = positionF * delta;
+			const double2 endF = ((positionF + double2(1, 1)) * delta) - double2(1, 1);
+			const int2 middle{ (startF + endF) / 2 };
 		
-		if (middle.x + 1 >= static_cast<int>(yuvImage.width()) || middle.y + 1 >= static_cast<int>(yuvImage.height()))
-			throw std::runtime_error("Incorrect image size");
+			if (middle.x + 1 >= static_cast<int>(yuvImage.width()) || middle.y + 1 >= static_cast<int>(yuvImage.height()))
+				throw std::runtime_error("Incorrect image size");
 
-		for (int x = -1; x <= 1; x++)
-			for (int y = -1; y <= 1; y++)
-			{
-				auto pos = middle + int2(x, y);
-				color.addColor(yuvImage(pos.x, pos.y));
-			}
+			for (int x = -1; x <= 1; x++)
+				for (int y = -1; y <= 1; y++)
+				{
+					auto pos = middle + int2(x, y);
+					color.addColor(yuvImage(pos.x, pos.y));
+				}
+		}
 		if (!color.calculateFinalColor())
 			throw std::runtime_error("Too much noice while reading the color");
 		return color;
@@ -159,7 +172,7 @@ namespace BoardUtils
 
 	bool parseBoard(const LoggerName& _log, const Image<ColorRgb>& yuvImage, int& boardIndex, CapturedColors& allColors, bool multiFrame)
 	{
-		bool exit = (multiFrame) ? false : true;
+		bool complete = true;
 
 		int line = 0;
 		CapturedColor white, black;
@@ -200,36 +213,32 @@ namespace BoardUtils
 
 		int max1 = (boardIndex + 1) * SCREEN_SAMPLES_PER_BOARD;
 		int max2 = std::pow(SCREEN_COLOR_DIMENSION, 3);
-		for (int currentIndex = boardIndex * SCREEN_SAMPLES_PER_BOARD; currentIndex < max1 && currentIndex < max2; currentIndex++)
+		// Validate the whole board before counting any samples from this frame.
+		std::vector<CapturedColor> samples;
+		for (int index = boardIndex * SCREEN_SAMPLES_PER_BOARD; index < std::min(max1, max2); ++index)
 		{
 			byte3 color;
 			int2 position;
-			indexToColorAndPos(currentIndex, color, position);
-
-			int B = (currentIndex % SCREEN_COLOR_DIMENSION);
-			int G = ((currentIndex / (SCREEN_COLOR_DIMENSION)) % SCREEN_COLOR_DIMENSION);
-			int R = (currentIndex / (SCREEN_COLOR_DIMENSION * SCREEN_COLOR_DIMENSION));
-
+			indexToColorAndPos(index, color, position);
 			try
 			{
-				auto capturedColor = readBlock(yuvImage, position, &color);
-				if (allColors.all[R][G][B].hasAnySample())
-				{					
-					allColors.all[R][G][B].importColors(capturedColor);
-					if (allColors.all[R][G][B].hasAllSamples())
-						exit = true;
-				}
-				else
-				{
-					capturedColor.setSourceRGB(color);
-					allColors.all[R][G][B] = capturedColor;
-				}
+				samples.push_back(readBlock(yuvImage, position, &color));
 			}
-			catch (std::exception& /*ex*/)
+			catch (const std::exception&)
 			{
-				Error(_log, "Could not read position [{:d}, {:d}]. Too much noice or too low resolution", position.x, position.y);
+				Error(_log, "Could not read calibration patch [{:d}, {:d}]", position.x, position.y);
 				return false;
 			}
+		}
+		int index = boardIndex * SCREEN_SAMPLES_PER_BOARD;
+		for (auto& sample : samples)
+		{
+			auto& target = allColors.all[index / (SCREEN_COLOR_DIMENSION * SCREEN_COLOR_DIMENSION)]
+				[(index / SCREEN_COLOR_DIMENSION) % SCREEN_COLOR_DIMENSION][index % SCREEN_COLOR_DIMENSION];
+			if (!target.hasAnySample() || !target.importColors(sample))
+				target = std::move(sample);
+			complete = complete && (!multiFrame || target.hasAllSamples());
+			++index;
 		}
 
 		if (black.Y() > SCREEN_YUV_RANGE_LIMIT)
@@ -251,7 +260,7 @@ namespace BoardUtils
 
 		if (multiFrame)
 		{
-			if (!exit)
+			if (!complete)
 				Info(_log, "Successfully parsed image of test board no. {:d}. Waiting for another frame...", boardIndex);
 			else
 				Info(_log, "Successfully parsed final image of test board no. {:d}", boardIndex);
@@ -261,7 +270,7 @@ namespace BoardUtils
 			Info(_log, "Successfully parsed image of the {:d} test board", boardIndex);
 		}
 
-		return exit;
+		return complete;
 	}
 
 	Image<ColorRgb> loadTestBoardAsYuv(const std::string& filename)

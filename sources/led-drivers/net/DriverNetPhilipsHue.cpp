@@ -921,6 +921,23 @@ bool DriverNetPhilipsHue::setLights()
 		_lights.clear();
 		if (!lArray.empty())
 		{
+			// Wizard layouts store channel IDs in LED order. The bridge may enumerate
+			// the same channels in a different order after restarting.
+			const auto savedOrder = _devConfig["lightIds"].toArray();
+			if (!savedOrder.isEmpty() && savedOrder.size() == lArray.size())
+			{
+				QMap<QString, QJsonValue> byId;
+				for (const auto& channel : std::as_const(lArray))
+					byId.insert(QString::number(channel.toObject()["channel_id"].toInt()), channel);
+				QJsonArray ordered;
+				for (const auto& id : savedOrder)
+				{
+					const auto key = id.toString();
+					if (!byId.contains(key)) break;
+					ordered.append(byId.take(key));
+				}
+				if (ordered.size() == lArray.size()) lArray = ordered;
+			}
 			unsigned int ledidx = 0;
 			for (const auto& channel : std::as_const(lArray))
 			{
@@ -1065,6 +1082,7 @@ bool DriverNetPhilipsHue::init(QJsonObject deviceConfig)
 	verbose = deviceConfig["verbose"].toBool(false);
 
 	// Initialise LedDevice configuration and execution environment
+	_screenColorimetry = _devConfig["screenColorimetry"].toBool(false);
 	_convertToLinearRgb = _devConfig["convertToLinearRgb"].toBool(false);
 	_switchOffOnBlack = _devConfig["switchOffOnBlack"].toBool(true);
 	_blackLightsTimeout = _devConfig["blackLightsTimeout"].toInt(15000);
@@ -1668,7 +1686,7 @@ int DriverNetPhilipsHue::writeSingleLightsGeneric(
 	{
 		_zoneColors.resize(_lights.size());
 		for (size_t i = 0; i < _lights.size(); ++i)
-			_zoneColors[i] = nonLinearRgbToColorXYB(_convertToLinearRgb, colorAt(i));
+			_zoneColors[i] = nonLinearRgbToColorXYB(colorAt(i));
 
 		balanceHueZoneBrightness(_zoneColors, _zoneBrightnessBalance, !apiV2 && _switchOffOnBlack ? _blackLevel : 0.f);
 	}
@@ -1676,7 +1694,7 @@ int DriverNetPhilipsHue::writeSingleLightsGeneric(
 	for (size_t idx = 0; idx < _lights.size(); ++idx)
 	{
 		auto& light = _lights[idx];
-		auto xy = balanceZones ? _zoneColors[idx] : nonLinearRgbToColorXYB(_convertToLinearRgb, colorAt(idx));
+		auto xy = balanceZones ? _zoneColors[idx] : nonLinearRgbToColorXYB(colorAt(idx));
 
 		if (apiV2)
 		{
@@ -2164,7 +2182,7 @@ void DriverNetPhilipsHue::identify(const QJsonObject& params)
 	}
 }
 
-ColorXYB DriverNetPhilipsHue::nonLinearRgbToColorXYB(bool convertToLinearRgb, const linalg::vec<float, 3>& nonlinear)
+ColorXYB DriverNetPhilipsHue::nonLinearRgbToColorXYB(const linalg::vec<float, 3>& nonlinear) const
 {
 	constexpr float BRIGHTNESS_THRESHOLD = 1e-5f;
 	constexpr float SUM_GUARD = 1e-10f;
@@ -2174,11 +2192,13 @@ ColorXYB DriverNetPhilipsHue::nonLinearRgbToColorXYB(bool convertToLinearRgb, co
 		0.000088f, 0.072310f, 0.986039f   // m[6], m[7], m[8]                m[2], m[5], m[8]
 	});
 
-	auto inputRgb = (convertToLinearRgb) ? InfiniteProcessing::srgbNonlinearToLinear(nonlinear) : nonlinear;
-
-	linalg::aliases::float3 XYZ = linalg::max(mul(matrix_rgb_to_XYZ, inputRgb), linalg::aliases::float3(0.0f));
-
-	auto bri = linalg::maxelem(inputRgb);
+	auto inputRgb = (_convertToLinearRgb || _screenColorimetry) ? InfiniteProcessing::srgbNonlinearToLinear(nonlinear) : nonlinear;
+	const auto xyz = _screenColorimetry
+		? static_cast<linalg::aliases::float3>(ColorSpaceMath::from_sRGB_to_XYZ(static_cast<linalg::aliases::double3>(inputRgb)))
+		: mul(matrix_rgb_to_XYZ, inputRgb);
+	const auto XYZ = linalg::max(xyz, linalg::aliases::float3(0.0f));
+	// Chromaticity needs linear channels. Preserve the configured brightness curve independently.
+	auto bri = linalg::maxelem(_screenColorimetry && !_convertToLinearRgb ? nonlinear : inputRgb);
 	if (bri < BRIGHTNESS_THRESHOLD)
 	{
 		return { 0.f, 0.f, 0.f };

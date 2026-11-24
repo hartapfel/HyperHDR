@@ -991,8 +991,16 @@ void HyperAPI::handleLutCalibrationCommand(const QJsonObject& message, const QSt
 		bool debug = message["debug"].toBool(false);
 		bool lchCorrection = message["lch_correction"].toBool(false);
 
+		const auto source = getActiveComponent();
+		const bool piccapHdr = message["piccap_hdr"].toBool(false);
+		if (piccapHdr && source != hyperhdr::COMP_FLATBUFSERVER)
+		{
+			sendErrorReply("PicCap HDR10 calibration requires an active FlatBuffers source", command, tan);
+			return;
+		}
+
 		QThread* lutThread = new QThread();
-		LutCalibrator* lutCalibrator = new LutCalibrator(_instanceManager->getRootPath(), getActiveComponent(), debug, lchCorrection);
+		LutCalibrator* lutCalibrator = new LutCalibrator(_instanceManager->getRootPath(), source, debug, lchCorrection, piccapHdr);
 		lutCalibrator->moveToThread(lutThread);
 		connect(lutThread, &QThread::finished, lutCalibrator, &LutCalibrator::deleteLater);
 		connect(lutThread, &QThread::started, lutCalibrator, &LutCalibrator::startHandler);		

@@ -44,7 +44,7 @@ $(document).ready( function(){
 			startCalibrationWizard();
 			const calDebug = document.getElementById('chk_debug').checked;
 			const calLchCorrection = document.getElementById('chk_lchCorrection').checked;
-			requestLutCalibration("capture", calDebug, calLchCorrection);
+			requestLutCalibration("capture", calDebug, calLchCorrection, $("#piccap_hdr").is(":checked"));
 	});
 
 
@@ -191,7 +191,7 @@ $(document).ready( function(){
 			resetImage();
 
 			let resElement = document.getElementById("calibration_summary_header");
-			resElement.innerHTML = `Finished!<br/>If the new LUT file was successfully created then you can find the path in the HyperHDR logs.<br/>Usually it's 'lut_lin_tables.3d' in your home HyperHDR folder.`;
+			resElement.textContent = $.i18n("calibration_file_saved", json.filename || "lut_lin_tables.3d");
 			$('#wizp1').toggle(false);
 			$('#wizp2').toggle(true);
 			return;
@@ -214,7 +214,7 @@ $(document).ready( function(){
 			setTimeout(() => {
 				const calDebug = document.getElementById('chk_debug2').checked;
 				const calLchCorrection = document.getElementById('chk_lchCorrection2').checked;
-				requestLutCalibration("capture", calDebug, calLchCorrection);				
+				requestLutCalibration("capture", calDebug, calLchCorrection, $("#piccap_hdr").is(":checked"));
 			}, 100); 
 		}
 		else
@@ -331,7 +331,7 @@ $(document).ready( function(){
 	function fastBox(x1, y1, x2, y2, c1, c2 ,c3)
 	{
 		ctx.fillStyle = `rgb(${c1}, ${c2}, ${c3})`;
-		ctx.fillRect(x1, y1, (x2 - x1), (y2 - y1));
+		ctx.fillRect(x1, y1, x2 - x1 + 1, y2 - y1 + 1);
 	}
 
 	function drawImage()

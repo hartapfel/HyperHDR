@@ -177,6 +177,13 @@
 			"access" : "advanced",
 			"propertyOrder" : 14
 		},
+		"screenColorimetry": {
+			"type": "boolean",
+			"format": "checkbox",
+			"title": "edt_dev_spec_screenColorimetry_title",
+			"default": false,
+			"propertyOrder": 20
+		},
 		"zoneBrightnessBalance": {
 			"type": "integer",
 			"format": "stepper",

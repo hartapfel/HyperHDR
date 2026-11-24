@@ -302,6 +302,8 @@ void FlatBuffersServer::loadLutFile()
 
 		QString userFile = QString("%1/%2").arg(_configurationPath).arg(_userLutFile);
 		files.prepend(userFile);
+		if (_hdrToneMappingEnabled && _userLutFile == QStringLiteral("lut_lin_tables_hdr.3d") && _currentLutPixelFormat == PixelFormat::YUYV)
+			files.prepend(_configurationPath + QStringLiteral("/piccap_calibrated_hdr.3d"));
 		Debug(_log, "Adding user LUT file for searching: {:s}", (userFile));
 	}
 

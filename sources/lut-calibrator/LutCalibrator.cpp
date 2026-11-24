@@ -54,6 +54,8 @@
 #include <utils-image/utils-image.h>
 #include <linalg.h>
 #include <fstream>
+#include <QSaveFile>
+#include <lut-calibrator/BoardSampling.h>
 #include <lut-calibrator/CalibrationWorker.h>
 #include <infinite-color-engine/InfiniteRgbInterpolator.h>
 #include <infinite-color-engine/InfiniteYuvInterpolator.h>
@@ -118,7 +120,7 @@ public:
 //                      LUT CALIBRATOR                         //
 /////////////////////////////////////////////////////////////////
 
-LutCalibrator::LutCalibrator(QString rootpath, hyperhdr::Components defaultComp, bool debug, bool lchCorrection)
+LutCalibrator::LutCalibrator(QString rootpath, hyperhdr::Components defaultComp, bool debug, bool lchCorrection, bool piccapHdr)
 {
 	_log = "CALIBRATOR";
 	_capturedColors = std::make_shared<CapturedColors>();
@@ -126,6 +128,7 @@ LutCalibrator::LutCalibrator(QString rootpath, hyperhdr::Components defaultComp,
 
 	
 	_rootPath = rootpath;
+	_outputFile = piccapHdr ? QStringLiteral("piccap_calibrated_hdr.3d") : QStringLiteral("lut_lin_tables.3d");
 	_debug = debug;
 	_lchCorrection = lchCorrection;
 	_defaultComp = defaultComp;
@@ -169,6 +172,7 @@ void LutCalibrator::cancelCalibrationSafe()
 void LutCalibrator::error(QString message)
 {
 	QJsonObject report;
+	_forcedExit = true;
 	stopHandler();
 	Error(_log, "{:s}", (message));
 	report["error"] = message;
@@ -275,6 +279,7 @@ void LutCalibrator::notifyCalibrationFinished()
 {	
 	QJsonObject report;
 	report["finished"] = true;
+	report["filename"] = _outputFile;
 	emit SignalLutCalibrationUpdated(report);
 }
 
@@ -431,19 +436,19 @@ void LutCalibrator::handleImage(const Image<ColorRgb>& image)
 	/////////////////////////  Verify source  ////////////////////////////////
 	//////////////////////////////////////////////////////////////////////////
 
-	if (image.width() < 1280 || image.height() < 720)
+	const auto pixelFormat = image.getOriginFormat();
+	const bool flatNv12 = _defaultComp == hyperhdr::COMP_FLATBUFSERVER && pixelFormat == PixelFormat::NV12;
+	if (flatNv12 && !fitsNv12CalibrationBoard(image.width(), image.height()))
 	{
-		error(QString("Too low resolution: 1280/720 is the minimum. Received video frame: %1x%2. Stopped.").arg(image.width()).arg(image.height()));		
+		error(QString("NV12 calibration patches are too small at %1x%2. Try 256x144 or 320x180 and disable quarter-frame scaling.").arg(image.width()).arg(image.height()));
+		return;
+	}
+	if (!flatNv12 && (image.width() < 1280 || image.height() < 720 || image.width() * 9 != image.height() * 16))
+	{
+		error(QString("Received %1x%2. Low-resolution calibration requires NV12 from FlatBuffers. Other sources require at least 1280x720 at 16:9.").arg(image.width()).arg(image.height()));
 		return;
 	}
 
-	if (image.width() * 1080 != image.height() * 1920)
-	{
-		error("Invalid resolution width/height ratio. Expected aspect: 1920/1080 (or the same 1280/720 etc). Stopped.");
-		return;
-	}
-
-	auto pixelFormat = image.getOriginFormat();
 	if (pixelFormat != PixelFormat::NV12 && pixelFormat != PixelFormat::MJPEG && pixelFormat != PixelFormat::YUYV && pixelFormat != PixelFormat::P010)
 	{
 		error("Only NV12/MJPEG/YUYV/P010 video format for the USB grabber and NV12 for the flatbuffers source are supported for the LUT calibration.");
@@ -1290,7 +1295,7 @@ void  LutCalibrator::fineTune(bool precise)
 static void reportLCH(const LoggerName& _log, std::vector<std::vector<std::vector<CapturedColor>>>* all);
 
 
-void LutCalibrator::calibration()
+bool LutCalibrator::calibration()
 {
 	// calibration
 	auto totalTime = InternalClock::now();
@@ -1300,7 +1305,7 @@ void LutCalibrator::calibration()
 	if (_forcedExit)
 	{
 		error("User terminated calibration");
-		return;
+		return false;
 	}
 
 	totalTime = InternalClock::now() - totalTime;
@@ -1308,7 +1313,7 @@ void LutCalibrator::calibration()
 	if (bestResult->minError >= MAX_CALIBRATION_ERROR)
 	{
 		error("The calibration failed. The error is too high.");
-		return;
+		return false;
 	}
 
 	// fine tuning
@@ -1319,7 +1324,7 @@ void LutCalibrator::calibration()
 	if (_forcedExit)
 	{
 		error("User terminated calibration");
-		return;
+		return false;
 	}
 
 	totalTime2 = InternalClock::now() - totalTime2;
@@ -1376,12 +1381,13 @@ void LutCalibrator::calibration()
 	_lut.releaseMemory();
 
 	auto totalTime3 = InternalClock::now();
-	QString errorMessage = CreateLutFile(_log, _rootPath, bestResult.get(), &(_capturedColors->all));
+	QString errorMessage = CreateLutFile(_log, _rootPath, bestResult.get(), &(_capturedColors->all), _outputFile);
 	totalTime3 = InternalClock::now() - totalTime3;
 
 	if (!errorMessage.isEmpty())
 	{
 		error(errorMessage);
+		return false;
 	}
 	else
 	{
@@ -1428,6 +1434,7 @@ void LutCalibrator::calibration()
 	{
 		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_FLATBUFSERVER, -1, true);
 	}
+	return true;
 }
 
 
@@ -1548,30 +1555,24 @@ void CreateLutWorker::run()
 			}
 }
 
-QString LutCalibrator::CreateLutFile(const LoggerName& _log, QString _rootPath, BestResult* bestResult, std::vector<std::vector<std::vector<CapturedColor>>>* all)
+QString LutCalibrator::CreateLutFile(const LoggerName& _log, QString _rootPath, BestResult* bestResult, std::vector<std::vector<std::vector<CapturedColor>>>* all, const QString& outputFile)
 {
 	// write LUT table
-	QString fileName = QString("%1%2").arg(_rootPath).arg("/lut_lin_tables.3d.tmp");
-	QString finalFileName = QString("%1%2").arg(_rootPath).arg("/lut_lin_tables.3d");
-	std::fstream file;
-	file.open(fileName.toStdString(), std::ios::trunc | std::ios::out | std::ios::binary);
+	const QString finalFileName = _rootPath + "/" + outputFile;
+	QSaveFile file(finalFileName);
+	if (!file.open(QIODevice::WriteOnly))
+		return QString("Could not open %1: %2").arg(finalFileName, file.errorString());
 
-	if (!file.is_open())
-	{
-		return QString("Could not open LUT file for writing: %1").arg(fileName);
-	}
-	else
 	{
 		MemoryBuffer<uint8_t> _lut;
 		YuvConverter yuvConverter;
 		QThreadPool threadPool;
 
-		std::remove(finalFileName.toStdString().c_str());
-
-		Info(_log, "Writing LUT to temp file: {:s}", (fileName));
+		Info(_log, "Writing LUT for: {:s}", (finalFileName));
 		Info(_log, "Number of threads for LUT creator: {:d}", threadPool.maxThreadCount());
 
 		_lut.resize(LUT_FILE_SIZE);
+		if (!_lut.data()) return QStringLiteral("Insufficient memory for the calibration LUT");
 
 		for (int phase = 0; phase < 3; phase++)
 		{
@@ -1609,16 +1610,13 @@ QString LutCalibrator::CreateLutFile(const LoggerName& _log, QString _rootPath, 
 						}
 			}
 
-			file.write(reinterpret_cast<char*>(_lut.data()), _lut.size());
+			const auto size = static_cast<qint64>(_lut.size());
+			if (file.write(reinterpret_cast<const char*>(_lut.data()), size) != size)
+				return QString("Could not write %1: %2").arg(finalFileName, file.errorString());
 		}
-		file.flush();
-		file.close();
-	}	
-
-	if (std::rename(fileName.toStdString().c_str(), finalFileName.toStdString().c_str()))
-	{
-		return QString("Could not rename %1 to %2").arg(fileName).arg(finalFileName);
 	}
+	if (!file.commit())
+		return QString("Could not commit %1: %2").arg(finalFileName, file.errorString());
 
 	return QString();
 }
@@ -1644,9 +1642,7 @@ void LutCalibrator::calibrate()
 	sendReport(_log, "Captured colors:\r\n" +
 				generateReport(false));
 
-	calibration();
-
-	if (_forcedExit)
+	if (!calibration() || _forcedExit)
 		return;
 
 	sendReport(_log, "Calibrated:\r\n" +
