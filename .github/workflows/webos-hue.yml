@@ -6,11 +6,11 @@ permissions:
   contents: read
 
 env:
-  HUE_REV: a691d9bb556aac994f18600c000fa5c08c2ed520
+  HUE_REV: 39e3cd82c31a6d2ee0e4c71f0daba9096c4c4e67
   SDK_REV: a38c582ea397fec612811f8e933ae982d41fc5a3
   SDK: /opt/arm-webos-linux-gnueabi_sdk-buildroot
   APP_ID: org.webosbrew.hyperhdr.loader
-  TEST_VERSION: 22.0.3
+  TEST_VERSION: 22.0.4
 
 jobs:
   package:
@@ -33,7 +33,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y cpio rsync bc flatbuffers-compiler
+          sudo apt-get install -y cpio rsync bc flatbuffers-compiler qemu-user
       - name: Build the same Qt 6 SDK as webosbrew loader v22.0.1
         if: steps.sdk-cache.outputs.cache-hit != 'true'
         working-directory: buildroot
@@ -86,6 +86,12 @@ jobs:
             -DENABLE_FRAMEBUFFER=OFF -DENABLE_POWER_MANAGEMENT=OFF \
             -DUSE_EMBEDDED_WEB_RESOURCES=ON
           cmake --build build/tv --parallel 3
+      - name: Exercise the webOS engine with a disposable configuration
+        working-directory: hyperhdr
+        run: |
+          gcc=( "$SDK"/bin/*-gcc )
+          sysroot="$("${gcc[0]}" -print-sysroot)"
+          python3 tests/processing_defaults/smoke.py qemu-arm -L "$sysroot" build/tv/bin/hyperhdr
       - name: Check out the packaging script
         uses: actions/checkout@v4
         with:
