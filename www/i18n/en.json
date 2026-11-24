@@ -442,6 +442,8 @@
   "edt_dev_spec_baudrate_title": "Baudrate",
   "edt_dev_spec_blackLightsTimeout_title": "Signal detection timeout on black",
   "edt_dev_spec_brightnessFactor_title": "Brightness factor",
+  "edt_dev_spec_zoneBrightnessBalance_title": "Zone brightness balance",
+  "edt_dev_spec_zoneBrightnessBalance_expl": "Reduces brightness differences between Hue zones in each frame. Try 50% to soften isolated highlights. At 0%, each zone follows its own screen area.",
   "edt_dev_spec_brightnessMax_title": "Brightness maximum",
   "edt_dev_spec_brightnessMin_title": "Brightness minimum",
   "edt_dev_spec_brightnessThreshold_title": "Signal detection brightness minimum",

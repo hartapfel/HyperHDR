@@ -1,5 +1,6 @@
 #include <QSslConfiguration>
 #include <led-drivers/net/DriverNetPhilipsHue.h>
+#include <led-drivers/net/HueZoneBrightness.h>
 #include <HyperhdrConfig.h>
 #ifdef ENABLE_BONJOUR
 	#include <bonjour/DiscoveryWrapper.h>
@@ -1068,6 +1069,7 @@ bool DriverNetPhilipsHue::init(QJsonObject deviceConfig)
 	_switchOffOnBlack = _devConfig["switchOffOnBlack"].toBool(true);
 	_blackLightsTimeout = _devConfig["blackLightsTimeout"].toInt(15000);
 	_brightnessFactor = _devConfig["brightnessFactor"].toDouble(1.0);
+	_zoneBrightnessBalance = std::clamp(_devConfig["zoneBrightnessBalance"].toInt(0), 0, 100) / 100.f;
 	_transitionTime = _devConfig["transitiontime"].toInt(1);
 	_isRestoreOrigState = _devConfig["restoreOriginalState"].toBool(true);
 	_useHueEntertainmentAPI = deviceConfig["useEntertainmentAPI"].toBool(false);
@@ -1657,16 +1659,28 @@ int DriverNetPhilipsHue::writeSingleLightsGeneric(
 	const ColorContainer& colors,
 	Converter convert)
 {
-	unsigned int idx = 0;
-
-	if (isApiV2())
+	const bool apiV2 = isApiV2();
+	const auto colorAt = [&](size_t i) {
+		return i < colors.size() ? convert(colors[i]) : linalg::aliases::float3{ 0.f, 0.f, 0.f };
+	};
+	const bool balanceZones = _zoneBrightnessBalance > 0.f && _lights.size() > 1;
+	if (balanceZones)
 	{
-		for (PhilipsHueLight& light : _lights)
-		{
-			linalg::aliases::float3 colorF = (idx < colors.size()) ? convert(colors.at(idx))
-				: linalg::aliases::float3{ 0.f, 0.f, 0.f };
+		_zoneColors.resize(_lights.size());
+		for (size_t i = 0; i < _lights.size(); ++i)
+			_zoneColors[i] = nonLinearRgbToColorXYB(_convertToLinearRgb, colorAt(i));
 
-			// MOD: ustawienie koloru dla API V2
+		balanceHueZoneBrightness(_zoneColors, _zoneBrightnessBalance, !apiV2 && _switchOffOnBlack ? _blackLevel : 0.f);
+	}
+
+	for (size_t idx = 0; idx < _lights.size(); ++idx)
+	{
+		auto& light = _lights[idx];
+		auto xy = balanceZones ? _zoneColors[idx] : nonLinearRgbToColorXYB(_convertToLinearRgb, colorAt(idx));
+
+		if (apiV2)
+		{
+			const auto colorF = colorAt(idx);
 			ColorRgb color{
 				static_cast<uint8_t>(colorF.x * 255.f),
 				static_cast<uint8_t>(colorF.y * 255.f),
@@ -1674,23 +1688,10 @@ int DriverNetPhilipsHue::writeSingleLightsGeneric(
 			};
 			light.setRGBColor(color);
 
-			auto xy = nonLinearRgbToColorXYB(_convertToLinearRgb, colorF);
-
 			this->setOnOffState(light, true);
 			this->setColor(light, xy);
-
-			idx++;
+			continue;
 		}
-		return 0;
-	}
-
-	// MOD: klasyczne API
-	for (PhilipsHueLight& light : _lights)
-	{
-		linalg::aliases::float3 colorF = (idx < colors.size()) ? convert(colors.at(idx))
-			: linalg::aliases::float3{ 0.f, 0.f, 0.f };
-
-		auto xy = nonLinearRgbToColorXYB(_convertToLinearRgb, colorF);
 
 		if (_switchOffOnBlack && xy.z <= _blackLevel && light.isBlack(true))
 		{			
@@ -1745,8 +1746,6 @@ int DriverNetPhilipsHue::writeSingleLightsGeneric(
 			light.isBlack(false);
 		if (xy.z <= _blackLevel)
 			light.isWhite(false);
-
-		idx++;
 	}
 
 	return 0;

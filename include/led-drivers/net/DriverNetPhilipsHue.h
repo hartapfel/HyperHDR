@@ -228,11 +228,13 @@ private:
 	bool _convertToLinearRgb;
 	bool _switchOffOnBlack;
 	float _brightnessFactor;
+	float _zoneBrightnessBalance = 0.f;
 	int _transitionTime;
 	bool _isInitLeds;
 
 	std::vector<quint16> _lightIds;
 	std::vector<PhilipsHueLight> _lights;
+	std::vector<ColorXYB> _zoneColors;
 
 	unsigned int _lightsCount;
 	QString		_entertainmentConfigurationId;

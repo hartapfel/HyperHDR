@@ -375,6 +375,7 @@ function SaveHueConfig(saveLamps = true)
     d.onBlackTimeToPowerOff = parseInt(eV("onBlackTimeToPowerOff", 600));
     d.onBlackTimeToPowerOn = parseInt(eV("onBlackTimeToPowerOn", 300));
     d.brightnessFactor = parseFloat(eV("brightnessFactor", 1));
+    d.zoneBrightnessBalance = parseInt(eV("zoneBrightnessBalance", 0), 10);
 
     d.clientkey = $('#clientkey').val();
     d.groupId = parseInt($('#groupId').val());

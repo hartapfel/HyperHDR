@@ -177,6 +177,17 @@
 			"access" : "advanced",
 			"propertyOrder" : 14
 		},
+		"zoneBrightnessBalance": {
+			"type": "integer",
+			"format": "stepper",
+			"title": "edt_dev_spec_zoneBrightnessBalance_title",
+			"default": 0,
+			"minimum": 0,
+			"maximum": 100,
+			"step": 5,
+			"append": "edt_append_percent",
+			"propertyOrder": 19
+		},
 		"maxRetry":
 		{
 			"type" : "integer",
