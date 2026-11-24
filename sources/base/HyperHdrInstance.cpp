@@ -332,6 +332,11 @@ void HyperHdrInstance::saveCalibration(QString saveData)
 	_instanceConfig->saveSetting(settings::type::VIDEODETECTION, saveData);
 }
 
+QJsonObject HyperHdrInstance::restoreProcessingDefaults(bool includeToneMapping)
+{
+	return _instanceConfig->restoreProcessingDefaults(includeToneMapping);
+}
+
 void HyperHdrInstance::setSmoothing(int time)
 {
 	QJsonDocument tempDoc = getSetting(settings::type::SMOOTHING);

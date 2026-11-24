@@ -22,6 +22,7 @@ public:
 
 	bool upgradeDB(QJsonObject& dbConfig);
 	bool saveSettings(QJsonObject config, bool correct = false);
+	QJsonObject restoreProcessingDefaults(bool includeToneMapping);
 	QJsonDocument getSetting(settings::type type) const;
 	void saveSetting(settings::type key, QString saveData);
 	QJsonObject getSettings() const;

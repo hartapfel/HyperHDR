@@ -774,6 +774,22 @@ void HyperAPI::handleConfigCommand(const QJsonObject& message, const QString& co
 		else
 			sendErrorReply("No Authorization", command, tan);
 	}
+	else if (subcommand == "restore-processing")
+	{
+		if (!_adminAuthorized)
+			sendErrorReply("No Authorization", full_command, tan);
+		else if (!BaseAPI::isHyperhdrEnabled())
+			sendErrorReply("Enable HyperHDR before restoring settings", full_command, tan);
+		else
+		{
+			QJsonObject defaults;
+			SAFE_CALL_1_RET(_hyperhdr.get(), restoreProcessingDefaults, QJsonObject, defaults, bool, message.value("includeToneMapping").toBool());
+			if (defaults.isEmpty())
+				sendErrorReply("Could not restore Image Processing defaults", full_command, tan);
+			else
+				sendSuccessDataReply(QJsonDocument(defaults), full_command, tan);
+		}
+	}
 	else if (subcommand == "getconfig")
 	{
 		if (_adminAuthorized)

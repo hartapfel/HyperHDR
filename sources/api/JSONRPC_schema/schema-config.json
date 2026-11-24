@@ -10,7 +10,10 @@
 		"subcommand": {
 			"type" : "string",
 			"required" : true,
-			"enum" : ["setconfig","getconfig","getschema"]
+			"enum" : ["setconfig","getconfig","getschema","restore-processing"]
+		},
+		"includeToneMapping": {
+			"type": "boolean"
 		},
 		"tan" : {
 			"type" : "integer"

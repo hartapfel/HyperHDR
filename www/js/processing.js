@@ -139,10 +139,40 @@ $(document).ready( function() {
 		requestWriteConfig(editor_automatic_tone_mapping.getValue());
 	});
 
-	if (window.serverInfo.grabbers == null || Object.keys(window.serverInfo.grabbers).length === 0)
+	const includeToneMapping = Object.keys(window.serverInfo.grabbers || {}).length > 0;
+	if (!includeToneMapping)
 	{
 		$("#editor_container_automatic_tone_mapping").parent().hide();
 	}
+
+	const resetButton = $('#restore_processing_defaults');
+	const instance = window.currentHyperHdrInstance;
+	resetButton.prop('disabled', !!window.readOnlyMode).on('click', function() {
+		let message = $.i18n('processing_restore_confirm');
+		if (includeToneMapping)
+			message += ' ' + $.i18n('processing_restore_tone_mapping');
+		showInfoDialog('confirm', $.i18n('processing_restore_defaults'), message);
+		$('#id_btn_confirm').off('click').one('click', async function() {
+			if (!resetButton[0].isConnected || window.currentHyperHdrInstance !== instance)
+				return;
+			resetButton.prop('disabled', true);
+			try {
+				const response = await sendAsyncToHyperhdr('config', 'restore-processing', {includeToneMapping}, Math.floor(Math.random() * 1000000) + 2);
+				if (!response || !response.success)
+					throw new Error();
+				if (window.currentHyperHdrInstance === instance) {
+					Object.assign(window.serverConfig, response.info);
+					if (resetButton[0].isConnected)
+						loadContent(undefined, true);
+				}
+				toaster('success', $.i18n('processing_restore_defaults'), $.i18n('processing_restore_success'), 0);
+			} catch (error) {
+				showInfoDialog('error', '', $.i18n('processing_restore_error'));
+			} finally {
+				resetButton.prop('disabled', !!window.readOnlyMode);
+			}
+		});
+	});
 	
 	//create introduction
 	if(window.showOptHelp)

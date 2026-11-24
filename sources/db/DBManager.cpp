@@ -175,64 +175,36 @@ bool DBManager::recordExists(const VectorPair& conditions) const
 bool DBManager::updateRecord(const VectorPair& conditions, const QVariantMap& columns) const
 {
 	if (_readonlyMode)
-	{
 		return false;
-	}
 
+	// SQLite makes a single UPDATE atomic and joins any transaction owned by the caller.
 	SqlDatabase* idb = getDB();
-	if (idb->transaction())
+	SqlQuery query(idb);
+	QStringList assignments;
+	QVariantList values;
+	for (auto it = columns.constBegin(); it != columns.constEnd(); ++it)
 	{
+		assignments.append(it.key() + "=?");
+		values.append(it.value());
+	}
 
-		SqlQuery query(idb);
+	QStringList where;
+	if (!conditions.isEmpty())
+		where.append("WHERE");
+	for (const auto& pair : conditions)
+	{
+		where.append(pair.first + "=?");
+		values.append(pair.second);
+	}
 
-		QVariantList values;
-		QStringList prep;
-
-		// prepare columns valus
-		QVariantMap::const_iterator i = columns.constBegin();
-		while (i != columns.constEnd()) {
-			prep += i.key() + "=?";
-			values += i.value();
-
-			++i;
-		}
-
-		// prepare condition values
-		QStringList prepCond;
-		QVariantList prepBindVal;
-		if (!conditions.isEmpty())
-			prepCond << "WHERE";
-
-		for (const auto& pair : conditions)
-		{
-			prepCond << pair.first + "=?";
-			prepBindVal << pair.second;
-		}
-
-		query.prepare(QString("UPDATE %1 SET %2 %3").arg(_table, prep.join(", ")).arg(prepCond.join(" ")));
-		// add column values
+	if (query.prepare(QString("UPDATE %1 SET %2 %3").arg(_table, assignments.join(", "), where.join(" "))))
+	{
 		doAddBindValue(query, values);
-		// add condition values
-		doAddBindValue(query, prepBindVal);
-		if (!query.exec())
-		{
-			Error(_log, "Failed to update record: '{:s}' in table: '{:s}' Error: {:s}", (prepCond.join(" ")), (_table), (idb->error()));
-			idb->rollback();
-			return false;
-		}
+		if (query.exec())
+			return true;
 	}
-	else
-	{
-		Error(_log, "Could not create a DB transaction. Error: {:s}", (idb->error()));
-		return false;
-	}
-
-	if (!idb->commit())
-	{
-		Error(_log, "Could not commit the DB transaction. Error: {:s}", (idb->error()));
-	}
-
-	return true;
+	Error(_log, "Failed to update table: '{:s}' Error: {:s}", (_table), (idb->error()));
+	return false;
 }
 
 bool DBManager::getRecord(const VectorPair& conditions, QVariantMap& results, const QStringList& tColumns, const QStringList& tOrder) const

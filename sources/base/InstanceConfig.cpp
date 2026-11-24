@@ -5,6 +5,7 @@
 #include <base/InstanceConfig.h>
 #include <json-utils/JsonUtils.h>
 #include <db/SettingsTable.h>
+#include <db/SQLite.h>
 #include <json-utils/jsonschema/QJsonUtils.h>
 #include <json-utils/jsonschema/QJsonSchemaChecker.h>
 
@@ -328,6 +329,58 @@ bool InstanceConfig::saveSettings(QJsonObject config, bool correct)
 		}
 	}
 	return rc;
+}
+
+QJsonObject InstanceConfig::restoreProcessingDefaults(bool includeToneMapping)
+{
+	if (isReadOnlyMode())
+		return {};
+
+	QStringList sections = { "color", "smoothing", "blackborderdetector" };
+	if (includeToneMapping)
+		sections.append("automaticToneMapping");
+
+	QJsonObject defaults;
+	const auto schemas = _schemaJson.value("properties").toObject();
+	for (const auto& key : sections)
+	{
+		// A new installation initializes each of these sections from an empty object.
+		QJsonSchemaChecker checker;
+		checker.setSchema(schemas.value(key).toObject());
+		const auto section = checker.getAutoCorrectedConfig(QJsonObject());
+		if (section.isEmpty() || !checker.validate(section).first)
+			return {};
+		defaults.insert(key, section);
+	}
+
+	auto* db = _sTable->getDB();
+	if (!db || !db->transaction())
+		return {};
+
+	QStringList changed;
+	for (const auto& key : sections)
+	{
+		const QJsonDocument section(defaults.value(key).toObject());
+		if (_sTable->getSettingsRecord(key) == section)
+			continue;
+		if (!_sTable->createSettingsRecord(key, QString::fromUtf8(section.toJson(QJsonDocument::Compact))))
+		{
+			db->rollback();
+			return {};
+		}
+		changed.append(key);
+	}
+	if (!db->commit())
+	{
+		db->rollback();
+		return {};
+	}
+	for (const auto& key : changed)
+	{
+		_qconfig.insert(key, defaults.value(key));
+		emit SignalInstanceSettingsChanged(settings::stringToType(key), QJsonDocument(defaults.value(key).toObject()));
+	}
+	return defaults;
 }
 
 void InstanceConfig::saveSetting(settings::type key, QString saveData)
