@@ -86,12 +86,6 @@ jobs:
             -DENABLE_FRAMEBUFFER=OFF -DENABLE_POWER_MANAGEMENT=OFF \
             -DUSE_EMBEDDED_WEB_RESOURCES=ON
           cmake --build build/tv --parallel 3
-      - name: Exercise the webOS engine with a disposable configuration
-        working-directory: hyperhdr
-        run: |
-          gcc=( "$SDK"/bin/*-gcc )
-          sysroot="$("${gcc[0]}" -print-sysroot)"
-          python3 tests/processing_defaults/smoke.py qemu-arm -L "$sysroot" build/tv/bin/hyperhdr
       - name: Check out the packaging script
         uses: actions/checkout@v4
         with:
@@ -106,6 +100,35 @@ jobs:
           python3 packaging/package_ipk.py "$stock" hyperhdr/build/tv/bin/hyperhdr "$TEST_VERSION" "dist/${APP_ID}_${TEST_VERSION}_all.ipk"
           cd dist
           sha256sum *.ipk > SHA256SUMS
+      - name: Exercise the packaged engine and loader libraries
+        id: arm-test
+        run: |
+          gcc=( "$SDK"/bin/*-gcc )
+          sysroot="$("${gcc[0]}" -print-sysroot)"
+          service="usr/palm/services/${APP_ID}.service/hyperhdr"
+          for tree in stock updated; do mkdir -p "$tree"; done
+          ar p "${APP_ID}_22.0.1_all.ipk" data.tar.gz | tar -xz -C stock
+          ar p dist/*.ipk data.tar.gz | tar -xz -C updated
+          stock_libs="$PWD/stock/$service"
+          libs="$PWD/updated/$service"
+          runner=(qemu-arm -cpu cortex-a15 -L "$sysroot" -E OPENSSL_armcap=0)
+          if ! "${runner[@]}" -E "LD_LIBRARY_PATH=$stock_libs" "$stock_libs/hyperhdr" --service --version; then
+            echo "The unmodified LG release also fails to start under QEMU. Running the integration test natively."
+            echo 'native=true' >> "$GITHUB_OUTPUT"
+          else
+            python3 hyperhdr/tests/processing_defaults/smoke.py "${runner[@]}" -E "LD_LIBRARY_PATH=$libs" "$libs/hyperhdr"
+          fi
+      - name: Exercise the same revision on Linux if the stock LG engine cannot start under QEMU
+        if: steps.arm-test.outputs.native == 'true'
+        working-directory: hyperhdr
+        run: |
+          sudo apt-get install -y qt6-base-dev qt6-serialport-dev libturbojpeg0-dev libusb-1.0-0-dev libzstd-dev
+          cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_SYSTRAY=OFF -DENABLE_X11=OFF -DENABLE_PIPEWIRE=OFF -DENABLE_V4L2=OFF \
+            -DENABLE_SOUNDCAPLINUX=OFF -DENABLE_CEC=OFF -DENABLE_POWER_MANAGEMENT=OFF \
+            -DENABLE_SPI_FTDI=OFF -DENABLE_PROTOBUF=OFF -DUSE_EMBEDDED_WEB_RESOURCES=ON
+          cmake --build build/host --parallel 3 --target hyperhdr
+          python3 tests/processing_defaults/smoke.py build/host/bin/hyperhdr
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
