@@ -313,6 +313,51 @@
 						"default" : 1,						
 						"propertyOrder" : 23
 					},
+					"shadowsLuminance": {
+						"type": "number", "format": "stepper", "step": 0.05,
+						"title": "edt_conf_color_shadowsLuminance_title", "required": true,
+						"minimum": 0, "maximum": 10, "default": 1, "propertyOrder": 24
+					},
+					"shadowsSaturation": {
+						"type": "number", "format": "stepper", "step": 0.05,
+						"title": "edt_conf_color_shadowsSaturation_title", "required": true,
+						"minimum": 0, "maximum": 10, "default": 1, "propertyOrder": 25
+					},
+					"shadowsGamma": {
+						"type": "number", "format": "stepper", "step": 0.05,
+						"title": "edt_conf_color_shadowsGamma_title", "required": true,
+						"minimum": 0.1, "maximum": 5, "default": 1, "propertyOrder": 26
+					},
+					"midtonesLuminance": {
+						"type": "number", "format": "stepper", "step": 0.05,
+						"title": "edt_conf_color_midtonesLuminance_title", "required": true,
+						"minimum": 0, "maximum": 10, "default": 1, "propertyOrder": 27
+					},
+					"midtonesSaturation": {
+						"type": "number", "format": "stepper", "step": 0.05,
+						"title": "edt_conf_color_midtonesSaturation_title", "required": true,
+						"minimum": 0, "maximum": 10, "default": 1, "propertyOrder": 28
+					},
+					"midtonesGamma": {
+						"type": "number", "format": "stepper", "step": 0.05,
+						"title": "edt_conf_color_midtonesGamma_title", "required": true,
+						"minimum": 0.1, "maximum": 5, "default": 1, "propertyOrder": 29
+					},
+					"highlightsLuminance": {
+						"type": "number", "format": "stepper", "step": 0.05,
+						"title": "edt_conf_color_highlightsLuminance_title", "required": true,
+						"minimum": 0, "maximum": 10, "default": 1, "propertyOrder": 30
+					},
+					"highlightsSaturation": {
+						"type": "number", "format": "stepper", "step": 0.05,
+						"title": "edt_conf_color_highlightsSaturation_title", "required": true,
+						"minimum": 0, "maximum": 10, "default": 1, "propertyOrder": 31
+					},
+					"highlightsGamma": {
+						"type": "number", "format": "stepper", "step": 0.05,
+						"title": "edt_conf_color_highlightsGamma_title", "required": true,
+						"minimum": 0.1, "maximum": 5, "default": 1, "propertyOrder": 32
+					},
 					"backlightThreshold" :
 					{
 						"type" : "number",
@@ -323,7 +368,7 @@
 						"minimum" : 0,
 						"maximum": 1.0,
 						"default" : 0.0039,
-						"propertyOrder" : 25
+						"propertyOrder" : 33
 					},
 					"backlightColored" :
 					{
@@ -332,7 +377,7 @@
 						"title" : "edt_conf_color_backlightColored_title",
 						"required" : true,
 						"default" : true,
-						"propertyOrder" : 27,
+						"propertyOrder" : 35,
 						"options": {
 							"dependencies": {
 								"backlightThreshold": true
@@ -349,7 +394,7 @@
 						"minimum" : 0,
 						"maximum": 1.0,
 						"default" : 1.0,
-						"propertyOrder" : 29
+						"propertyOrder" : 37
 					}
 				},
 				"additionalProperties" : false

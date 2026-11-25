@@ -56,6 +56,11 @@ def check_reset(process, profile):
         with urlopen("http://127.0.0.1:8090/js/processing.js", timeout=10) as script:
             assert b"'restore-processing'" in script.read()
         changed = copy.deepcopy(fresh)
+        grade = changed["color"]["channelAdjustment"][0]
+        for band in ("shadows", "midtones", "highlights"):
+            for control in ("Luminance", "Saturation", "Gamma"):
+                assert grade[band + control] == 1
+                grade[band + control] = 1.35
         changed["color"]["sparse_processing"] = True
         changed["smoothing"]["time_ms"] += 25
         changed["blackborderdetector"]["enable"] = not fresh["blackborderdetector"]["enable"]

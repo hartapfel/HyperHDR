@@ -10,6 +10,7 @@
 
 #include <image/ColorRgb.h>
 #include <infinite-color-engine/SharedOutputColors.h>
+#include <infinite-color-engine/TonalGrading.h>
 #include <utils/settings.h>
 #include <utils/Logger.h>
 #include <utils/Components.h>
@@ -175,6 +176,7 @@ private:
 
 	std::optional<float> _brightness;
 	std::optional<float> _saturation;
+	std::optional<TonalGrading> _tonalGrading;
 
 	std::optional<float> _scaleOutput;
 

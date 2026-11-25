@@ -177,34 +177,6 @@
 			"access" : "advanced",
 			"propertyOrder" : 14
 		},
-		"midtoneBrightnessFactor": {
-			"type": "number",
-			"format": "stepper",
-			"title": "edt_dev_spec_midtoneBrightnessFactor_title",
-			"default": 1.75,
-			"minimum": 0.5,
-			"maximum": 10,
-			"step": 0.05,
-			"append": "edt_append_multiplier",
-			"options": {
-				"dependencies": { "useEntertainmentAPI": true }
-			},
-			"propertyOrder": 26
-		},
-		"shadowBrightnessFactor": {
-			"type": "number",
-			"format": "stepper",
-			"title": "edt_dev_spec_shadowBrightnessFactor_title",
-			"default": 1,
-			"minimum": 0.5,
-			"maximum": 10,
-			"step": 0.05,
-			"append": "edt_append_multiplier",
-			"options": {
-				"dependencies": { "useEntertainmentAPI": true }
-			},
-			"propertyOrder": 27
-		},
 		"screenColorimetry": {
 			"type": "boolean",
 			"format": "checkbox",

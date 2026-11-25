@@ -143,6 +143,16 @@ void InfiniteProcessing::updateCurrentConfig(const QJsonObject& config)
 	float saturation = config["saturationGain"].toDouble(1);
 	setBrightnessAndSaturation(brightness, saturation);
 
+	auto readGrade = [&config](const QString& band) {
+		return ToneGrade{
+			static_cast<float>(config[band + "Luminance"].toDouble(1)),
+			static_cast<float>(config[band + "Saturation"].toDouble(1)),
+			static_cast<float>(config[band + "Gamma"].toDouble(1))
+		};
+	};
+	TonalGrading grade{readGrade("shadows"), readGrade("midtones"), readGrade("highlights")};
+	_tonalGrading = grade.neutral() ? std::nullopt : std::optional{grade};
+
 	float minimalBacklight = config["backlightThreshold"].toDouble(0);
 	auto coloredBacklight = config["backlightColored"].toBool(true);
 	setMinimalBacklight(minimalBacklight, coloredBacklight);
@@ -192,6 +202,8 @@ void InfiniteProcessing::applyyAllProcessingSteps(std::vector<linalg::vec<float,
 			color = srgbLinearToNonlinear(color);			
 			applyUserGamma(color);
 			applyBrightnessAndSaturation(color);			
+			if (_tonalGrading)
+				_tonalGrading->apply(color);
 			applyMinimalBacklight(color);
 		}
 

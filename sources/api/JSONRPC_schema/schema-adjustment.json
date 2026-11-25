@@ -119,6 +119,15 @@
 					"minimum" : 0.1,
 					"maximum" : 5.0
 				},				
+				"shadowsLuminance": { "type": "number", "required": false, "minimum": 0, "maximum": 10 },
+				"shadowsSaturation": { "type": "number", "required": false, "minimum": 0, "maximum": 10 },
+				"shadowsGamma": { "type": "number", "required": false, "minimum": 0.1, "maximum": 5 },
+				"midtonesLuminance": { "type": "number", "required": false, "minimum": 0, "maximum": 10 },
+				"midtonesSaturation": { "type": "number", "required": false, "minimum": 0, "maximum": 10 },
+				"midtonesGamma": { "type": "number", "required": false, "minimum": 0.1, "maximum": 5 },
+				"highlightsLuminance": { "type": "number", "required": false, "minimum": 0, "maximum": 10 },
+				"highlightsSaturation": { "type": "number", "required": false, "minimum": 0, "maximum": 10 },
+				"highlightsGamma": { "type": "number", "required": false, "minimum": 0.1, "maximum": 5 },
 				"backlightThreshold" : {
 					"type" : "number",
 					"required" : false,

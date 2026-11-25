@@ -230,8 +230,6 @@ private:
 	bool _switchOffOnBlack;
 	float _brightnessFactor;
 	float _zoneBrightnessBalance = 0.f;
-	float _midtoneBrightnessFactor = 1.75f;
-	float _shadowBrightnessFactor = 1.f;
 	int _transitionTime;
 	bool _isInitLeds;
 
