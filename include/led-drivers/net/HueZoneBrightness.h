@@ -5,19 +5,21 @@
 #include <span>
 #include <linalg.h>
 
-// Shape only the lower half of the Hue brightness command. The squared
-// envelope joins the existing curve with unit slope at black and at the shoulder.
-inline float liftHueShadows(float brightness, float strength, float blackLevel)
+// The anchors represent roughly the same gray patches in either driver mode:
+// 18% linear gray is about 46% in sRGB. Fade smoothly on both sides of it.
+inline float liftHueMidtones(float brightness, float strength, float blackLevel, bool linearRgb)
 {
-	constexpr float shoulder = 0.5f;
-	if (strength <= 0.f || brightness <= blackLevel || brightness >= shoulder)
+	const float low = linearRgb ? 0.025f : 0.17f;
+	const float middle = linearRgb ? 0.18f : 0.46f;
+	const float high = linearRgb ? 0.62f : 0.81f;
+	if (strength <= 0.f || brightness <= std::max(low, blackLevel) || brightness >= high)
 		return brightness;
 
-	const float range = shoulder - blackLevel;
-	const float t = (brightness - blackLevel) / range;
-	// Fade in near black and taper the lift as brightness approaches the shoulder.
-	const float envelope = (t / (t + 0.02f)) * (1.f - t);
-	return brightness + strength * 0.25f * range * envelope * envelope;
+	const float t = brightness <= middle ? (brightness - low) / (middle - low)
+		: (high - brightness) / (high - middle);
+	const float weight = t * t * (3.f - 2.f * t);
+	// An elevated V1 power-off threshold may fall inside the lift window.
+	return brightness + strength * std::min(0.12f * weight, brightness - blackLevel);
 }
 
 // Hue XY + brightness values, after the driver's optional linear RGB conversion.
