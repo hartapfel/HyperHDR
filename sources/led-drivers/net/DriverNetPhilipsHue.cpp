@@ -1088,6 +1088,7 @@ bool DriverNetPhilipsHue::init(QJsonObject deviceConfig)
 	_blackLightsTimeout = _devConfig["blackLightsTimeout"].toInt(15000);
 	_brightnessFactor = _devConfig["brightnessFactor"].toDouble(1.0);
 	_zoneBrightnessBalance = std::clamp(_devConfig["zoneBrightnessBalance"].toInt(0), 0, 100) / 100.f;
+	_shadowLift = std::clamp(_devConfig["shadowLift"].toInt(75), 0, 100) / 100.f;
 	_transitionTime = _devConfig["transitiontime"].toInt(1);
 	_isRestoreOrigState = _devConfig["restoreOriginalState"].toBool(true);
 	_useHueEntertainmentAPI = deviceConfig["useEntertainmentAPI"].toBool(false);
@@ -1859,8 +1860,15 @@ void DriverNetPhilipsHue::setTransitionTime(PhilipsHueLight& light)
 	}
 }
 
-void DriverNetPhilipsHue::setColor(PhilipsHueLight& light, ColorXYB& color)
+void DriverNetPhilipsHue::setColor(PhilipsHueLight& light, ColorXYB color)
 {
+	if (_useHueEntertainmentAPI)
+	{
+		const float blackLevel = !isApiV2() && _switchOffOnBlack ? _blackLevel : 0.f;
+		color.z = liftHueShadows(color.z, _shadowLift, blackLevel);
+		color.z = std::min(1.f, _brightnessFactor * std::max(0.f, color.z));
+	}
+
 	if (!light.hasColor() || light.getColor() != color)
 	{
 		if (!_useHueEntertainmentAPI)
@@ -1868,10 +1876,6 @@ void DriverNetPhilipsHue::setColor(PhilipsHueLight& light, ColorXYB& color)
 			const int bri = std::round(std::min(254.0f, _brightnessFactor * std::max(1.0f, color.z * 254.0f)));
 			QString stateCmd = QString("{\"%1\":[%2,%3],\"%4\":%5}").arg(API_XY_COORDINATES).arg(color.x, 0, 'd', 4).arg(color.y, 0, 'd', 4).arg(API_BRIGHTNESS).arg(bri);
 			setLightState(light.getId(), stateCmd);
-		}
-		else
-		{
-			color.z = (std::min(1.0f, _brightnessFactor * std::max(0.f, color.z)));
 		}
 		light.setColor(color);
 	}

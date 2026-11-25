@@ -179,7 +179,7 @@ public:
 
 	void setOnOffState(PhilipsHueLight& light, bool on, bool force = false);
 	void setTransitionTime(PhilipsHueLight& light);
-	void setColor(PhilipsHueLight& light, ColorXYB& color);
+	void setColor(PhilipsHueLight& light, ColorXYB color);
 	void setState(PhilipsHueLight& light, bool on, const ColorXYB& color);
 
 public slots:
@@ -230,6 +230,7 @@ private:
 	bool _switchOffOnBlack;
 	float _brightnessFactor;
 	float _zoneBrightnessBalance = 0.f;
+	float _shadowLift = 0.75f;
 	int _transitionTime;
 	bool _isInitLeds;
 

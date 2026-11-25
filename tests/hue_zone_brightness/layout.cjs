@@ -7,7 +7,7 @@ const writes = [];
 const context = {
     window: {serverConfig: {leds: [], device: {}, smoothing: {}, color: {channelAdjustment: [{}]}}},
     conf_editor: {getEditor: key => ({getValue: () => ({
-        zoneBrightnessBalance: 65, convertToLinearRgb: true, screenColorimetry: true
+        zoneBrightnessBalance: 65, shadowLift: 35, convertToLinearRgb: true, screenColorimetry: true
     })[key.split('.').pop()]})},
     requestWriteConfig: config => writes.push(structuredClone(config)),
     $: id => ({val(value) {
@@ -46,6 +46,7 @@ assert.equal(leds[0].hmax, .5);
 assert.equal(leds[1].hmin, .5);
 assert.equal(device.entertainmentConfigurationId, 'current');
 assert.equal(device.zoneBrightnessBalance, 65);
+assert.equal(device.shadowLift, 35);
 assert.equal(device.convertToLinearRgb, true);
 assert.equal(device.screenColorimetry, true);
 console.log('Hue layout import and wizard save passed');

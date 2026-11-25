@@ -177,6 +177,20 @@
 			"access" : "advanced",
 			"propertyOrder" : 14
 		},
+		"shadowLift": {
+			"type": "integer",
+			"format": "stepper",
+			"title": "edt_dev_spec_shadowLift_title",
+			"default": 75,
+			"minimum": 0,
+			"maximum": 100,
+			"step": 5,
+			"append": "edt_append_percent",
+			"options": {
+				"dependencies": { "useEntertainmentAPI": true }
+			},
+			"propertyOrder": 26
+		},
 		"screenColorimetry": {
 			"type": "boolean",
 			"format": "checkbox",

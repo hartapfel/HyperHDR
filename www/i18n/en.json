@@ -451,6 +451,8 @@
   "edt_dev_spec_screenColorimetry_title": "Match screen colors (sRGB / Rec. 709)",
   "edt_dev_spec_screenColorimetry_expl": "Use the screen primaries and D65 white point for colors sent to Hue after HDR tone mapping. The linear RGB setting still controls the brightness curve.",
   "edt_dev_spec_zoneBrightnessBalance_title": "Zone brightness balance",
+  "edt_dev_spec_shadowLift_title": "Dark-scene brightness",
+  "edt_dev_spec_shadowLift_expl": "Lifts dim Hue Entertainment zones while keeping black dark and preserving highlights. Set to 0% for the original response.",
   "edt_dev_spec_zoneBrightnessBalance_expl": "Reduces brightness differences between Hue zones in each frame. Try 50% to soften isolated highlights. At 0%, each zone follows its own screen area.",
   "edt_dev_spec_brightnessMax_title": "Brightness maximum",
   "edt_dev_spec_brightnessMin_title": "Brightness minimum",
