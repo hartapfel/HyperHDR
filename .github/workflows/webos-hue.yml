@@ -6,11 +6,11 @@ permissions:
   contents: read
 
 env:
-  HUE_REV: 39e3cd82c31a6d2ee0e4c71f0daba9096c4c4e67
+  HUE_REV: 73a3456ff2fcff7ded4453c40807485cf9616716
   SDK_REV: a38c582ea397fec612811f8e933ae982d41fc5a3
   SDK: /opt/arm-webos-linux-gnueabi_sdk-buildroot
   APP_ID: org.webosbrew.hyperhdr.loader
-  TEST_VERSION: 22.0.4
+  TEST_VERSION: 22.0.5
 
 jobs:
   package:
