@@ -40,39 +40,32 @@ bool checkMidtoneResponse(bool linear)
 {
 	const float low = linear ? 0.025f : 0.17f;
 	const float middle = linear ? 0.18f : 0.46f;
-	const float high = linear ? 0.62f : 0.81f;
-	// Sweep the full HueStream range, including black gates inside the lift window.
-	for (float threshold : { 0.f, 0.009f, middle, high - 0.01f, 1.f })
-		for (float strength : { 0.f, 0.75f, 1.f })
+	const float shoulder = linear ? 0.62f : 0.81f;
+	// Cover every slider step and 16-bit HueStream input, including raised V1 gates.
+	for (float threshold : { 0.f, 0.009f, middle, shoulder - 0.01f, 1.f })
+	{
+		std::vector<float> previousGain(65536, 0.f);
+		for (int step = 10; step <= 200; ++step)
 		{
+			const float gain = step / 20.f;
+			const float target = std::min(1.f, middle * gain);
+			if (threshold < low && std::abs(liftHueMidtones(middle, gain, threshold, linear) - target) > 1e-6f)
+				return false;
 			float previous = 0.f;
 			for (int code = 0; code <= 65535; ++code)
 			{
 				const float input = code / 65535.f;
-				const float output = liftHueMidtones(input, strength, threshold, linear);
-				if (!(output >= input && output >= previous && output <= 1.f) ||
-					((strength == 0.f || input <= std::max(threshold, low) || input >= high) && output != input))
+				const float output = liftHueMidtones(input, gain, threshold, linear);
+				if (!(output >= previous && output >= previousGain[code] && output <= 1.f) ||
+					((gain == 1.f || input <= std::max(low, threshold) || code == 65535 ||
+						(gain <= 1.75f && input >= std::max(shoulder, target + (target - middle) / 2))) && output != input))
 				{
-					std::cerr << "Invalid midtone response at code " << code << ", threshold " << threshold << '\n';
+					std::cerr << "Invalid midtone output at " << code << ", gain " << gain << ", gate " << threshold << '\n';
 					return false;
 				}
-				previous = output;
+				previous = previousGain[code] = output;
 			}
 		}
-
-	// A 75% slider gives a 9 percentage-point peak lift and half that
-	// halfway to either shoulder, before the user's overall brightness factor.
-	for (const auto& [input, lift] : { std::pair{low, 0.f}, std::pair{(low + middle) / 2.f, 0.045f},
-		std::pair{middle, 0.09f}, std::pair{(middle + high) / 2.f, 0.045f}, std::pair{high, 0.f} })
-	{
-		std::vector<linalg::aliases::float3> zones(3, { 0.31f, 0.33f, input });
-		balanceHueZoneBrightness(zones, 0.75f, 0.f);
-		for (const auto& zone : zones)
-			if (std::abs(liftHueMidtones(zone.z, 0.75f, 0.f, linear) - (input + lift)) > 0.00001f)
-			{
-				std::cerr << "Unexpected Hue stream brightness for " << input << '\n';
-				return false;
-			}
 	}
 	return true;
 }

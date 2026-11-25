@@ -824,6 +824,9 @@ $(document).ready(function()
 			{
 				values_specific[key] = (key in window.serverConfig.device) ? window.serverConfig.device[key] : specificOptions_val[key];
 			};
+			const device = window.serverConfig.device;
+			if (ledType === "philipshue" && device.midtoneBrightnessFactor == null && Number.isInteger(device.shadowLift))
+				values_specific.midtoneBrightnessFactor = 1 + Math.max(0, Math.min(100, device.shadowLift)) / 100;
 			conf_editor.getEditor("root.specificOptions").setValue(values_specific);
 		}
 		else

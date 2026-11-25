@@ -398,7 +398,7 @@ function SaveHueConfig()
     d.convertToLinearRgb = eV("convertToLinearRgb", false) == true;
     d.screenColorimetry = eV("screenColorimetry", false) == true;
     d.zoneBrightnessBalance = parseInt(eV("zoneBrightnessBalance", 0), 10);
-    d.shadowLift = parseInt(eV("shadowLift", 75), 10);
+    d.midtoneBrightnessFactor = Number(eV("midtoneBrightnessFactor", 1.75));
 
     d.clientkey = $('#clientkey').val();
     d.groupId = parseInt($('#groupId').val());

@@ -1088,8 +1088,8 @@ bool DriverNetPhilipsHue::init(QJsonObject deviceConfig)
 	_blackLightsTimeout = _devConfig["blackLightsTimeout"].toInt(15000);
 	_brightnessFactor = _devConfig["brightnessFactor"].toDouble(1.0);
 	_zoneBrightnessBalance = std::clamp(_devConfig["zoneBrightnessBalance"].toInt(0), 0, 100) / 100.f;
-	// Keep the 22.0.5 settings key so an upgrade preserves the user's slider value.
-	_midtoneLift = std::clamp(_devConfig["shadowLift"].toInt(75), 0, 100) / 100.f;
+	const double legacyFactor = 1.0 + std::clamp(_devConfig["shadowLift"].toInt(75), 0, 100) / 100.0;
+	_midtoneBrightnessFactor = std::clamp(_devConfig["midtoneBrightnessFactor"].toDouble(legacyFactor), 0.5, 10.0);
 	_transitionTime = _devConfig["transitiontime"].toInt(1);
 	_isRestoreOrigState = _devConfig["restoreOriginalState"].toBool(true);
 	_useHueEntertainmentAPI = deviceConfig["useEntertainmentAPI"].toBool(false);
@@ -1866,7 +1866,7 @@ void DriverNetPhilipsHue::setColor(PhilipsHueLight& light, ColorXYB color)
 	if (_useHueEntertainmentAPI)
 	{
 		const float blackLevel = !isApiV2() && _switchOffOnBlack ? _blackLevel : 0.f;
-		color.z = liftHueMidtones(color.z, _midtoneLift, blackLevel, _convertToLinearRgb);
+		color.z = liftHueMidtones(color.z, _midtoneBrightnessFactor, blackLevel, _convertToLinearRgb);
 		color.z = std::min(1.f, _brightnessFactor * std::max(0.f, color.z));
 	}
 

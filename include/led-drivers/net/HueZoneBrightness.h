@@ -7,19 +7,33 @@
 
 // The anchors represent roughly the same gray patches in either driver mode:
 // 18% linear gray is about 46% in sRGB. Fade smoothly on both sides of it.
-inline float liftHueMidtones(float brightness, float strength, float blackLevel, bool linearRgb)
+inline float liftHueMidtones(float brightness, float multiplier, float blackLevel, bool linearRgb)
 {
-	const float low = linearRgb ? 0.025f : 0.17f;
-	const float middle = linearRgb ? 0.18f : 0.46f;
-	const float high = linearRgb ? 0.62f : 0.81f;
-	if (strength <= 0.f || brightness <= std::max(low, blackLevel) || brightness >= high)
+	const double low = linearRgb ? 0.025f : 0.17f;
+	const double middle = linearRgb ? 0.18f : 0.46f;
+	const double target = std::min(1.0, middle * multiplier);
+	// Give large gains room to rejoin the highlight response without reversing it.
+	const double high = std::clamp(target + (target - middle) / 2, linearRgb ? 0.62 : 0.81, 1.0);
+	if (multiplier == 1.f || brightness <= low || brightness <= blackLevel || brightness >= high)
 		return brightness;
 
-	const float t = brightness <= middle ? (brightness - low) / (middle - low)
-		: (high - brightness) / (high - middle);
-	const float weight = t * t * (3.f - 2.f * t);
-	// An elevated V1 power-off threshold may fall inside the lift window.
-	return brightness + strength * std::min(0.12f * weight, brightness - blackLevel);
+	const bool below = brightness < middle;
+	const double width = below ? middle - low : high - middle;
+	const double first = below ? low : target;
+	const double last = below ? target : high;
+	const double t = (brightness - (below ? low : middle)) / width;
+	// Limit the cubic's endpoint slopes to keep the response monotone,
+	// even when middle gray reaches full brightness.
+	const double slope = std::min(width, 1.5 * (last - first));
+	const double output = std::lerp(first, last, t) +
+		(slope - (last - first)) * t * (1.0 - t) * (1.0 - 2.0 * t);
+	if (blackLevel <= low)
+		return static_cast<float>(output);
+
+	// Approach an elevated V1 power-off threshold continuously.
+	const double aboveGate = double(brightness) - blackLevel;
+	return static_cast<float>(std::clamp(output, blackLevel + std::min(1.f, multiplier) * aboveGate,
+		blackLevel + std::max(1.f, multiplier) * aboveGate));
 }
 
 // Hue XY + brightness values, after the driver's optional linear RGB conversion.
