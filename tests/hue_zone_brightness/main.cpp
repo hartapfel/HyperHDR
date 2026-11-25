@@ -36,11 +36,9 @@ bool checkFrame(const char* name, const std::vector<float>& input, float strengt
 	return true;
 }
 
-bool checkMidtoneResponse(bool linear)
+using ToneResponse = float (*)(float, float, float, bool);
+bool checkToneResponse(ToneResponse response, bool linear, float low, float middle, float shoulder)
 {
-	const float low = linear ? 0.025f : 0.17f;
-	const float middle = linear ? 0.18f : 0.46f;
-	const float shoulder = linear ? 0.62f : 0.81f;
 	// Cover every slider step and 16-bit HueStream input, including raised V1 gates.
 	for (float threshold : { 0.f, 0.009f, middle, shoulder - 0.01f, 1.f })
 	{
@@ -49,18 +47,18 @@ bool checkMidtoneResponse(bool linear)
 		{
 			const float gain = step / 20.f;
 			const float target = std::min(1.f, middle * gain);
-			if (threshold < low && std::abs(liftHueMidtones(middle, gain, threshold, linear) - target) > 1e-6f)
+			if (threshold < low && std::abs(response(middle, gain, threshold, linear) - target) > 1e-6f)
 				return false;
 			float previous = 0.f;
 			for (int code = 0; code <= 65535; ++code)
 			{
 				const float input = code / 65535.f;
-				const float output = liftHueMidtones(input, gain, threshold, linear);
+				const float output = response(input, gain, threshold, linear);
 				if (!(output >= previous && output >= previousGain[code] && output <= 1.f) ||
 					((gain == 1.f || input <= std::max(low, threshold) || code == 65535 ||
 						(gain <= 1.75f && input >= std::max(shoulder, target + (target - middle) / 2))) && output != input))
 				{
-					std::cerr << "Invalid midtone output at " << code << ", gain " << gain << ", gate " << threshold << '\n';
+					std::cerr << "Invalid tone output at " << code << ", gain " << gain << ", gate " << threshold << '\n';
 					return false;
 				}
 				previous = previousGain[code] = output;
@@ -72,7 +70,10 @@ bool checkMidtoneResponse(bool linear)
 
 int main()
 {
-	return checkMidtoneResponse(true) && checkMidtoneResponse(false) &&
+	return checkToneResponse(liftHueMidtones, true, 0.025f, 0.18f, 0.62f) &&
+		checkToneResponse(liftHueMidtones, false, 0.17f, 0.46f, 0.81f) &&
+		checkToneResponse(liftHueShadows, true, 0.002f, 0.05f, 0.18f) &&
+		checkToneResponse(liftHueShadows, false, 0.026f, 0.248f, 0.46f) &&
 		checkFrame("disabled", { 0.1f, 0.9f }, 0, 0, { 0.1f, 0.9f }) &&
 		checkFrame("half strength", { 0.1f, 0.9f }, 0.5f, 0, { 0.15f, 0.7f }) &&
 		checkFrame("uniform", { 0.4f, 0.4f }, 1, 0, { 0.4f, 0.4f }) &&

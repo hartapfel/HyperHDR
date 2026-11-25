@@ -5,15 +5,12 @@
 #include <span>
 #include <linalg.h>
 
-// The anchors represent roughly the same gray patches in either driver mode:
-// 18% linear gray is about 46% in sRGB. Fade smoothly on both sides of it.
-inline float liftHueMidtones(float brightness, float multiplier, float blackLevel, bool linearRgb)
+inline float scaleHueTone(float brightness, float multiplier, float blackLevel,
+	double low, double middle, double shoulder)
 {
-	const double low = linearRgb ? 0.025f : 0.17f;
-	const double middle = linearRgb ? 0.18f : 0.46f;
 	const double target = std::min(1.0, middle * multiplier);
 	// Give large gains room to rejoin the highlight response without reversing it.
-	const double high = std::clamp(target + (target - middle) / 2, linearRgb ? 0.62 : 0.81, 1.0);
+	const double high = std::clamp(target + (target - middle) / 2, shoulder, 1.0);
 	if (multiplier == 1.f || brightness <= low || brightness <= blackLevel || brightness >= high)
 		return brightness;
 
@@ -34,6 +31,19 @@ inline float liftHueMidtones(float brightness, float multiplier, float blackLeve
 	const double aboveGate = double(brightness) - blackLevel;
 	return static_cast<float>(std::clamp(output, blackLevel + std::min(1.f, multiplier) * aboveGate,
 		blackLevel + std::max(1.f, multiplier) * aboveGate));
+}
+
+inline float liftHueMidtones(float brightness, float multiplier, float blackLevel, bool linearRgb)
+{
+	return scaleHueTone(brightness, multiplier, blackLevel, linearRgb ? 0.025f : 0.17f,
+		linearRgb ? 0.18f : 0.46f, linearRgb ? 0.62 : 0.81);
+}
+
+inline float liftHueShadows(float brightness, float multiplier, float blackLevel, bool linearRgb)
+{
+	// Five percent linear gray corresponds to about 25% in sRGB.
+	return scaleHueTone(brightness, multiplier, blackLevel, linearRgb ? 0.002f : 0.026f,
+		linearRgb ? 0.05f : 0.248f, linearRgb ? 0.18f : 0.46f);
 }
 
 // Hue XY + brightness values, after the driver's optional linear RGB conversion.

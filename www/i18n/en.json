@@ -453,6 +453,8 @@
   "edt_dev_spec_screenColorimetry_expl": "Use the screen primaries and D65 white point for colors sent to Hue after HDR tone mapping. The linear RGB setting still controls the brightness curve.",
   "edt_dev_spec_zoneBrightnessBalance_title": "Zone brightness balance",
   "edt_dev_spec_midtoneBrightnessFactor_title": "Midtone brightness multiplier",
+  "edt_dev_spec_shadowBrightnessFactor_title": "Shadow brightness multiplier",
+  "edt_dev_spec_shadowBrightnessFactor_expl": "Scales dark gray after the midtone adjustment and before overall brightness. 1× is neutral. At 2×, a 5% linear gray entering this stage becomes 10%. Higher gains extend into brighter tones.",
   "edt_dev_spec_midtoneBrightnessFactor_expl": "Scales middle-gray brightness before overall brightness. 1× is neutral and 2× doubles middle gray. High values can reach full lamp brightness.",
   "edt_dev_spec_zoneBrightnessBalance_expl": "Reduces brightness differences between Hue zones in each frame. Try 50% to soften isolated highlights. At 0%, each zone follows its own screen area.",
   "edt_dev_spec_brightnessMax_title": "Brightness maximum",
